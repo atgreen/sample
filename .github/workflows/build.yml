@@ -36,7 +36,7 @@ jobs:
 
     - name: Test if base exists
       id: base-exists
-      run: echo "::set-output name=base-exists::$(podman manifest inspect quay.io/moxielogic/sample/sample-base:${{ steps.base-hash.outputs.base-hash }} > /dev/null 2>&1 && echo 'EXISTS')"
+      run: echo "::set-output name=base-exists::$(podman manifest inspect quay.io/moxielogic/sample-base:${{ steps.base-hash.outputs.base-hash }} > /dev/null 2>&1 && echo 'EXISTS')"
 
     - name: Prepare base image
       id: build-base
@@ -54,7 +54,7 @@ jobs:
       with:
         image: ${{ steps.build-base.outputs.image }}
         tags: ${{ steps.build-base.outputs.tags }}
-        registry: quay.io/moxielogic/sample
+        registry: quay.io/moxielogic
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
       if: ${{ steps.base-exists.outputs.base-exists != 'EXISTS' }}
@@ -76,7 +76,7 @@ jobs:
       with:
         image: ${{ steps.build-image.outputs.image }}
         tags: ${{ steps.build-image.outputs.tags }}
-        registry: quay.io/moxielogic/sample
+        registry: quay.io/moxielogic
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
 
