@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: sample-pod
+  name: sample-pod
+spec:
+  containers:
+  - name: sample
+    image: quay.io/moxielogic/sample:latest
+    ports:
+    - containerPort: 8080
+      hostPort: 8080
+      protocol: TCP
+    volumeMounts:
+    - mountPath: /etc/sample
+      name: sample-config
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities: {}
+      privileged: false
+      readOnlyRootFilesystem: false
+      seLinuxOptions: {}
+  volumes:
+  - name: sample-config
+    hostPath:
+      path: /home/runner/work/sample/sample/test/config.ini
+      type: File
+status: {}
