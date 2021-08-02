@@ -1,4 +1,4 @@
-FROM quay.io/moxielogic/sample/sample-base:latest
+FROM quay.io/moxielogic/sample-base:latest
 
 COPY . /tmp/src
 ARG APP_VERSION=APP_VERSION
