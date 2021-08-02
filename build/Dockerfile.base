@@ -13,10 +13,10 @@ FROM quay.io/containerlisp/lisp-10-ubi8
 
 COPY src/sample.asd /tmp
 USER 0
-RUN dnf install -y git && \
-    sbcl --eval '(let* ((ds (with-open-file (stream "/tmp/sample.asd")         \
+RUN dnf install -y git
+USER 1001
+RUN sbcl --eval '(let* ((ds (with-open-file (stream "/tmp/sample.asd")         \
                               (read stream)))                                 \
                         (pos (position :DEPENDS-ON ds)))                      \
                    (dolist (p (nth (+ pos 1) ds))                             \
                      (ql:quickload p)))'
-USER 1001
