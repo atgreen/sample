@@ -88,6 +88,10 @@ jobs:
         podman play kube test/test-pod.yml
         podman pod ps
         podman ps -a
+        timeout -s TERM 45 bash -c \
+          'while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' ${0})" != "200" ]];\
+            do echo "Waiting for ${0}" && sleep 2;\
+           done' http://localhost:8080/health
         podman container inspect sample-pod-sample
-        ./test/test.sh $ip:8080 || true
+        ./test/test.sh localhost:8080 || true
         podman logs sample-pod-sample
