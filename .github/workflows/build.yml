@@ -32,7 +32,7 @@ jobs:
 
     - name: Get base hash
       id: base-hash
-      run: echo "::set-output name=base-hash::$(sha512sum sample.asd | cut -b 1-8)"
+      run: echo "::set-output name=base-hash::$(sha512sum src/sample.asd | cut -b 1-8)"
 
     - name: Test if base exists
       id: base-exists
