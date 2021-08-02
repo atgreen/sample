@@ -86,6 +86,6 @@ jobs:
     - name: Test
       run: |
         podman play kube test/test-pod.yml
-        podman constainer sample-pod-sample
+        podman container sample-pod-sample
         ./test/test.sh $ip:8080 || true
         podman logs sample-pod-sample
