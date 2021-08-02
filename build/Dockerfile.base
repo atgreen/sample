@@ -11,11 +11,11 @@ FROM quay.io/containerlisp/lisp-10-ubi8
 # Preload dependencies into this base image so we aren't always
 # hitting the quicklisp archives.
 
-COPY sample.asd /tmp
+COPY src/sample.asd /tmp
 
 RUN dnf install -y git && \
-   sbcl --eval '(let* ((ds (with-open-file (stream "/tmp/src/sample.asd")         \
-                              (read stream)))                                     \
-                        (pos (position :DEPENDS-ON ds)))                          \
-                   (dolist (p (nth (+ pos 1) ds))                                 \
+   sbcl --eval '(let* ((ds (with-open-file (stream "/tmp/sample.asd")         \
+                              (read stream)))                                 \
+                        (pos (position :DEPENDS-ON ds)))                      \
+                   (dolist (p (nth (+ pos 1) ds))                             \
                      (ql:quickload p)))'
