@@ -91,6 +91,6 @@ jobs:
             do echo "Waiting for ${0}" && sleep 2;\
            done' http://localhost:8080/health
         ./test/test.sh localhost:8080 || true
-        curl -s https://localhost:8080
+        curl -s http://localhost:8080
         echo "==== Container Logs ================================"
         podman logs sample-pod-sample
