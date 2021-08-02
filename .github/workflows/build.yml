@@ -88,6 +88,6 @@ jobs:
         podman play kube test/test-pod.yml
         podman pod ps
         podman ps -a
-        podman container sample-pod-sample
+        podman container inspect sample-pod-sample
         ./test/test.sh $ip:8080 || true
         podman logs sample-pod-sample
