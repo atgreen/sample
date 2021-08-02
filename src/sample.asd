@@ -25,7 +25,7 @@
 	       (:file "sample"))
   :depends-on (:markup :cl-toml :cl-json
                :inferior-shell
-	       :hunchentoot :cl-json-util :cl-fad :str :log4cl
+	       :hunchentoot :cl-fad :str :log4cl
 	       :cl-ppcre :prometheus :easy-routes
 	       :prometheus.formats.text
 	       :prometheus.exposers.hunchentoot
