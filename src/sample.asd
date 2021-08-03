@@ -23,11 +23,16 @@
   :serial t
   :components ((:file "package")
 	       (:file "sample"))
-  :depends-on (:markup :cl-toml :cl-json
+  :depends-on (:cl-fad
+               :cl-toml
+               :easy-routes
+               :hunchentoot
                :inferior-shell
-	       :hunchentoot :cl-fad :str :log4cl
-	       :cl-ppcre :prometheus :easy-routes
-	       :prometheus.formats.text
-	       :prometheus.exposers.hunchentoot
-	       :prometheus.collectors.sbcl
-	       :prometheus.collectors.process))
+               :log4cl
+               :markup
+               :prometheus
+               :prometheus.collectors.process
+               :prometheus.collectors.sbcl
+               :prometheus.exposers.hunchentoot
+               :prometheus.formats.text
+               :str))

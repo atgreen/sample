@@ -15,8 +15,8 @@ COPY src/sample.asd /tmp
 USER 0
 RUN dnf install -y git
 USER 1001
-RUN sbcl --eval '(let* ((ds (with-open-file (stream "/tmp/sample.asd")         \
-                              (read stream)))                                 \
-                        (pos (position :DEPENDS-ON ds)))                      \
-                   (dolist (p (nth (+ pos 1) ds))                             \
+RUN sbcl --eval '(let* ((ds (with-open-file (stream "/tmp/sample.asd") \
+                              (read stream)))                                     \
+                        (pos (position :DEPENDS-ON ds)))                          \
+                   (dolist (p (nth (+ pos 1) ds))                                 \
                      (ql:quickload p)))'

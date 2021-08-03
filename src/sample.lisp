@@ -24,14 +24,14 @@
 
 ;; ----------------------------------------------------------------------------
 ;; Get the version number at compile time.  This comes from
-;; APP_VERSION (set on the linux container build commandline), or
-;; from git at compile-time.  Use UNKNOWN if all else fails.
+;; APP_VERSION (set on the linux container build commandline), or from
+;; git at compile-time.  Use UNKNOWN if all else fails.
 
 ;; This can come from build time...
 (eval-when (:compile-toplevel :execute :load-toplevel)
   (defparameter +sample-git-version+
     (inferior-shell:run/ss
-     "(test -d .git && git describe --tags --dirty=+) || echo UNKNOWN")))
+     "git describe --tags --dirty=+ || git rev-parse --short HEAD || echo UNKNOWN")))
 
 ;; But this must come from runtime...
 (defparameter +sample-version+
@@ -40,6 +40,10 @@
  	(or (uiop:getenv "APP_VERSION") v)
  	v)))
 
+;; ----------------------------------------------------------------------------
+;; Find the directory in which we are installed.  This is used to
+;; serve up static content.
+
 (defun sample-root ()
   (fad:pathname-as-directory
    (make-pathname :name nil
@@ -47,7 +51,14 @@
                   :defaults #.(or *compile-file-truename* *load-truename*))))
 
 ;; ----------------------------------------------------------------------------
+;; Machinery for managing the execution of the server.
+
+(defvar *shutdown-cv* (bt:make-condition-variable))
+(defvar *server-lock* (bt:make-lock))
+
+;; ----------------------------------------------------------------------------
 ;; Default configuration.  Overridden by external config file.
+;; Config files are required to be in TOML format.
 
 (defvar *config* nil)
 (defvar *default-config* nil)
@@ -55,10 +66,16 @@
 "server-uri = \"http://localhost:8080\"
 ")
 
+;; ----------------------------------------------------------------------------
+;; The URI of the server.  Define this in your config.ini files.  Use
+;; this is you are generating responses that point back to this
+;; application.
+
 (defvar *server-uri* nil)
 
 ;; ----------------------------------------------------------------------------
-(defparameter *sample-registry* nil)
+;; Initialize prometheus values.
+
 (defparameter *http-requests-counter* nil)
 (defparameter *http-request-duration* nil)
 
@@ -84,7 +101,10 @@
 ;; ----------------------------------------------------------------------------
 ;; API routes
 
-;; Readiness probe
+(defparameter *sample-registry* nil)
+
+;; Readiness probe.  Always ready by default, but this can be as
+;; complex as required.
 (easy-routes:defroute health ("/health") ()
   "ready")
 
@@ -108,9 +128,9 @@
    This is the index page of my new app, version ,(progn +sample-version+).
    </page-template>))
 
-;;; END ROUTE DEFINITIONS -----------------------------------------------------
+;; ----------------------------------------------------------------------------
+;; HTTP server control
 
-;;; HTTP SERVER CONTROL: ------------------------------------------------------
 (defparameter *handler* nil)
 
 (defparameter +sample-dispatch-table+
@@ -136,76 +156,60 @@
    (mute-access-logs :initform t :initarg :mute-access-logs :reader mute-access-logs)
    (mute-messages-logs :initform t :initarg :mute-error-logs :reader mute-messages-logs)))
 
-(defmacro start-server (&key (handler '*handler*) (port 8080))
-  "Initialize an HTTP handler"
-  `(progn
-     (setf *print-pretty* nil)
-     (setf hunchentoot:*dispatch-table* +sample-dispatch-table+)
-     (setf prom:*default-registry* *sample-registry*)
-     (let ((exposer (make-instance 'exposer-acceptor :registry *sample-registry* :port 9101)))
-       (log:info "About to start hunchentoot")
-       (setf ,handler (hunchentoot:start (make-instance 'application
-							:document-root #p"./"
-							:port ,port
-							:exposer exposer))))))
-
 (defmacro stop-server (&key (handler '*handler*))
   "Shutdown the HTTP handler"
   `(hunchentoot:stop ,handler))
 
-;;; END SERVER CONTROL --------------------------------------------------------
-
 (defun start-server (&optional (config-ini "/etc/sample/config.ini"))
-  "Start the web application and have the main thread sleep forever if
-  SLEEP-FOREVER? is not NIL."
 
-  (setf hunchentoot:*catch-errors-p* t)
-  (setf hunchentoot:*show-lisp-errors-p* t)
-  (setf hunchentoot:*show-lisp-backtraces-p* t)
+  (bt:with-lock-held (*server-lock*)
 
-  (log:info "Starting sample version ~A" +sample-version+)
+    (setf hunchentoot:*catch-errors-p* t)
+    (setf hunchentoot:*show-lisp-errors-p* t)
+    (setf hunchentoot:*show-lisp-backtraces-p* t)
 
-  ;; Read the built-in configuration settings.
-  (setf *default-config* (cl-toml:parse +default-config-text+))
+    (log:info "Starting sample version ~A" +sample-version+)
 
-  ;; Read the user configuration settings.
-  (setf *config*
-  	(if (fad:file-exists-p config-ini)
-	    (cl-toml:parse
-	     (alexandria:read-file-into-string config-ini
-					       :external-format :latin-1))
-	    (make-hash-table)))
+    ;; Read the built-in configuration settings.
+    (setf *default-config* (cl-toml:parse +default-config-text+))
 
-  (flet ((get-config-value (key)
-	   (let ((value (or (gethash key *config*)
-			    (gethash key *default-config*)
-			    (error "config does not contain key '~A'" key))))
-	     ;; Some of the users of these values are very strict
-	     ;; when it comes to string types... I'm looking at you,
-	     ;; SB-BSD-SOCKETS:GET-HOST-BY-NAME.
-	     (if (subtypep (type-of value) 'vector)
-		 (coerce value 'simple-string)
-		 value))))
+    ;; Read the user configuration settings.
+    (setf *config*
+  	  (if (fad:file-exists-p config-ini)
+	      (cl-toml:parse
+	       (alexandria:read-file-into-string config-ini
+					         :external-format :latin-1))
+	      (make-hash-table)))
 
-  (setf *server-uri* (get-config-value "server-uri"))
-  (initialize-metrics)
+    (flet ((get-config-value (key)
+	     (let ((value (or (gethash key *config*)
+			      (gethash key *default-config*)
+			      (error "config does not contain key '~A'" key))))
+	       ;; Some of the users of these values are very strict
+	       ;; when it comes to string types... I'm looking at you,
+	       ;; SB-BSD-SOCKETS:GET-HOST-BY-NAME.
+	       (if (subtypep (type-of value) 'vector)
+		   (coerce value 'simple-string)
+		   value))))
 
-  (log:info "About to start server")
+      ;; Extract any config.ini settings here.
+      (setf *server-uri* (get-config-value "server-uri"))
 
-  (setf hunchentoot:*dispatch-table* +sample-dispatch-table+)
-  (setf prom:*default-registry* *sample-registry*)
-  (setf *print-pretty* nil)
-  (setf *handler* (let ((exposer (make-instance 'exposer-acceptor :registry *sample-registry* :port 9101)))
-                    (hunchentoot:start (make-instance 'application
-                                                      :document-root #p"./"
-                                                      :port 8080
-                                                      :exposer exposer))))
+      ;; Initialize prometheus
+      (initialize-metrics)
 
-  ;; If SLEEP-FOREVER? is NIL, then exit right away.  This is used by the
-  ;; testsuite.
-  (log:info "About to enter sleep loop")
-  (loop
-    (sleep 3000))))
+      (log:info "Starting server")
+
+      (setf hunchentoot:*dispatch-table* +sample-dispatch-table+)
+      (setf prom:*default-registry* *sample-registry*)
+      (setf *print-pretty* nil)
+      (setf *handler* (let ((exposer (make-instance 'exposer-acceptor :registry *sample-registry* :port 9101)))
+                        (hunchentoot:start (make-instance 'application
+                                                          :document-root #p"./"
+                                                          :port 8080
+                                                          :exposer exposer))))
+
+      (bt:condition-wait *shutdown-cv* *server-lock*))))
 
 (defmethod hunchentoot:start ((app application))
   (hunchentoot:start (application-metrics-exposer app))
