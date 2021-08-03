@@ -77,10 +77,12 @@ jobs:
           'while [[ "$(curl -s -o /dev/null -L -w ''%{http_code}'' ${0})" != "200" ]];\
             do echo "Waiting for ${0}" && sleep 2;\
            done' http://localhost:8080/health
-        ./test/test.sh localhost:8080 || true
-        curl -s http://localhost:8080
-        echo "==== Container Logs ================================"
-        podman logs sample-pod-sample
+        ./test/test.sh localhost:8080 || \
+        (EXIT_CODE=$?
+         curl -s http://localhost:8080
+         echo "==== Container Logs ================================"
+         podman logs sample-pod-sample
+         exit $EXIT_CODE)
 
     - name: Push to registry
       id: push-to-quay
